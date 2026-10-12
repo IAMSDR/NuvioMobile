@@ -45,10 +45,20 @@ object StreamsRepository {
         season: Int? = null,
         episode: Int? = null,
         manualSelection: Boolean = false,
+        scopedPluginId: String? = null,
     ): String =
-        "$type::$videoId::$season::$episode::$manualSelection"
+        "$type::$videoId::$season::$episode::$manualSelection::$scopedPluginId"
 
-    fun load(type: String, videoId: String, parentMetaId: String? = null, season: Int? = null, episode: Int? = null, manualSelection: Boolean = false) {
+    fun load(
+        type: String,
+        videoId: String,
+        parentMetaId: String? = null,
+        season: Int? = null,
+        episode: Int? = null,
+        manualSelection: Boolean = false,
+        scopedPluginId: String? = null,
+        extra: String = "",
+    ) {
         PluginRepository.setLocalPluginSearchPaused(false)
         load(
             type = type,
@@ -57,11 +67,22 @@ object StreamsRepository {
             season = season,
             episode = episode,
             manualSelection = manualSelection,
+            scopedPluginId = scopedPluginId,
+            extra = extra,
             forceRefresh = false,
         )
     }
 
-    fun reload(type: String, videoId: String, parentMetaId: String? = null, season: Int? = null, episode: Int? = null, manualSelection: Boolean = false) {
+    fun reload(
+        type: String,
+        videoId: String,
+        parentMetaId: String? = null,
+        season: Int? = null,
+        episode: Int? = null,
+        manualSelection: Boolean = false,
+        scopedPluginId: String? = null,
+        extra: String = "",
+    ) {
         PluginRepository.setLocalPluginSearchPaused(false)
         load(
             type = type,
@@ -70,11 +91,23 @@ object StreamsRepository {
             season = season,
             episode = episode,
             manualSelection = manualSelection,
+            scopedPluginId = scopedPluginId,
+            extra = extra,
             forceRefresh = true,
         )
     }
 
-    private fun load(type: String, videoId: String, parentMetaId: String?, season: Int?, episode: Int?, manualSelection: Boolean, forceRefresh: Boolean) {
+    private fun load(
+        type: String,
+        videoId: String,
+        parentMetaId: String?,
+        season: Int?,
+        episode: Int?,
+        manualSelection: Boolean,
+        scopedPluginId: String? = null,
+        extra: String = "",
+        forceRefresh: Boolean,
+    ) {
         val pluginUiState = if (AppFeaturePolicy.pluginsEnabled) {
             PluginRepository.initialize()
             PluginRepository.uiState.value
@@ -87,6 +120,7 @@ object StreamsRepository {
             season = season,
             episode = episode,
             manualSelection = manualSelection,
+            scopedPluginId = scopedPluginId,
         )
         val requestKey = "$requestToken::pluginsGrouped=${pluginUiState.groupStreamsByRepository}"
         val currentState = _uiState.value
@@ -159,12 +193,18 @@ object StreamsRepository {
             return
         }
 
+        val isScopedPlugin = !scopedPluginId.isNullOrBlank()
         val isNativeServerRequest = ServerStreams.isNativeRequest(videoId)
-        val serverSources = ServerStreams.sources(type, videoId, season, episode, forceRefresh)
+        val serverSources = if (isScopedPlugin) emptyList() else ServerStreams.sources(type, videoId, season, episode, forceRefresh)
         val preferredGroupIds = serverSources.filter { it.preferred }.mapTo(mutableSetOf()) { it.addonId }
-        val installedAddons = if (isNativeServerRequest) emptyList() else AddonRepository.uiState.value.addons.enabledAddons()
+        val installedAddons = if (isScopedPlugin || isNativeServerRequest) emptyList() else AddonRepository.uiState.value.addons.enabledAddons()
         val pluginScrapers = if (AppFeaturePolicy.pluginsEnabled && !isNativeServerRequest) {
-            PluginRepository.getEnabledScrapersForType(type)
+            val allForType = PluginRepository.getEnabledScrapersForType(type)
+            if (isScopedPlugin) {
+                allForType.filter { it.id == scopedPluginId }
+            } else {
+                allForType
+            }
         } else {
             emptyList()
         }
@@ -485,6 +525,7 @@ object StreamsRepository {
                             mediaType = type,
                             season = season,
                             episode = episode,
+                            extra = extra,
                         ).fold(
                             onSuccess = { results ->
                                 StreamLoadCompletion.PluginScraper(

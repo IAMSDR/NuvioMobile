@@ -191,17 +191,15 @@ abstract class GenerateRuntimeConfigsTask : DefaultTask() {
             )
         }
 
-        outDir.resolve("com/nuvio/app/features/settings").apply {
+        outDir.resolve("com/nuvio/app/features/updater").apply {
             mkdirs()
-            resolve("CommunityConfig.kt").writeText(
+            resolve("GitHubConfig.kt").writeText(
                 """
-                |package com.nuvio.app.features.settings
+                |package com.nuvio.app.features.updater
                 |
-                |object CommunityConfig {
-                |    const val CONTRIBUTIONS_URL = "${props.getProperty("CONTRIBUTIONS_URL", "")}" 
-                |    const val SUPPORTERS_WALL_URL = "${props.getProperty("SUPPORTERS_WALL_URL", "https://nuvio.tv/api/supporters/wall")}"
-                |    const val DONATIONS_BASE_URL = "${props.getProperty("DONATIONS_BASE_URL", "")}" 
-                |    const val DONATIONS_DONATE_URL = "${props.getProperty("DONATIONS_DONATE_URL", "")}" 
+                |object GitHubConfig {
+                |    const val OWNER = "${props.getProperty("GITHUB_OWNER", "IAMSDR")}"
+                |    const val REPO = "${props.getProperty("GITHUB_REPO", "NuvioMobile")}"
                 |}
                 """.trimMargin()
             )
@@ -320,8 +318,8 @@ val generateRuntimeConfigs = tasks.register<GenerateRuntimeConfigsTask>("generat
     localPropertiesFile.set(rootProject.layout.projectDirectory.file("local.properties"))
     appVersionName.set(releaseAppVersionName)
     appVersionCode.set(releaseAppVersionCode)
-    supabaseUrl.set(runtimeConfigValue("NUVIO_SUPABASE_URL"))
-    supabaseAnonKey.set(runtimeConfigValue("NUVIO_SUPABASE_ANON_KEY"))
+    supabaseUrl.set(runtimeConfigValue("NUVIO_SUPABASE_URL", "https://api.nuvio.tv"))
+    supabaseAnonKey.set(runtimeConfigValue("NUVIO_SUPABASE_ANON_KEY", "sb_publishable_1Clq8rlTVACkdcZuqr6_AD__xUUC_EN"))
     supabaseFallbackUrl.set(runtimeConfigValue("NUVIO_SUPABASE_FALLBACK_URL"))
     sentryDsn.set(runtimeConfigValue("SENTRY_DSN"))
     tmdbApiKey.set(runtimeConfigValue("TMDB_API_KEY"))

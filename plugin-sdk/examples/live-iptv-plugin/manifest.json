@@ -1,0 +1,31 @@
+{
+  "name": "Live IPTV Example Repo",
+  "version": "1.0.0",
+  "scrapers": [
+    {
+      "id": "live-iptv-plugin",
+      "name": "Live IPTV Channels",
+      "description": "Example plugin providing direct live stream channels.",
+      "version": "1.0.0",
+      "filename": "live-plugin.js",
+      "logo": "https://images.unsplash.com/photo-1594909122845-11baa439b7bf?w=200",
+      "supportedTypes": ["live"],
+      "hasHome": true,
+      "supportsSearch": true,
+      "catalogs": [
+        {
+          "id": "sports-channels",
+          "name": "Sports Channels",
+          "type": "live",
+          "extra": "sports"
+        },
+        {
+          "id": "news-channels",
+          "name": "News 24/7",
+          "type": "live",
+          "extra": "news"
+        }
+      ]
+    }
+  ]
+}

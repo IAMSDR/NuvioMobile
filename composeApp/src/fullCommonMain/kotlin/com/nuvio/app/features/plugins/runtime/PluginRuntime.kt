@@ -1,5 +1,6 @@
 package com.nuvio.app.features.plugins.runtime
 
+import com.nuvio.app.features.plugins.PluginMediaItem
 import com.nuvio.app.features.plugins.PluginRuntimeResult
 import com.nuvio.app.features.plugins.PluginStorage
 import com.nuvio.app.features.plugins.runtime.crypto.CryptoBridge
@@ -56,6 +57,7 @@ internal object PluginRuntime {
         season: Int?,
         episode: Int?,
         scraperId: String,
+        extra: String = "",
         respectSearchPause: Boolean = true,
     ): List<PluginRuntimeResult> {
         suspend fun run(): List<PluginRuntimeResult> {
@@ -74,6 +76,7 @@ internal object PluginRuntime {
                             season = season,
                             episode = episode,
                             scraperId = scraperId,
+                            extra = extra,
                             scraperSettings = scraperSettingsMap,
                         )
                     }
@@ -85,6 +88,130 @@ internal object PluginRuntime {
             runWhenSearchActive { run() }
         } else {
             run()
+        }
+    }
+
+    suspend fun executeCatalog(
+        code: String,
+        scraperId: String,
+        catalogId: String,
+        mediaType: String,
+        extra: String? = null,
+        page: Int = 1,
+    ): List<PluginMediaItem> {
+        val scraperSettingsJson = PluginStorage.loadScraperSettings(scraperId) ?: "{}"
+        val scraperSettingsMap = runCatching {
+            json.decodeFromString<Map<String, JsonElement>>(scraperSettingsJson)
+        }.getOrElse { emptyMap() }
+
+        return scraperSemaphore.withPermit {
+            withContext(pluginDispatcher) {
+                withTimeout(PLUGIN_TIMEOUT_MS) {
+                    val jsRuntime = JsRuntime()
+                    val deferred = CompletableDeferred<String>()
+                    val settingsJson = JsonObject(scraperSettingsMap).toString()
+                    val callArgsJson = JsonObject(
+                        mapOf(
+                            "catalogId" to JsonPrimitive(catalogId),
+                            "mediaType" to JsonPrimitive(mediaType),
+                            "extra" to JsonPrimitive(extra ?: ""),
+                            "page" to JsonPrimitive(page),
+                        ),
+                    ).toString()
+
+                    val domBridge = DomBridge()
+                    val hostRegistry = HostApiRegistry().apply {
+                        addModule(
+                            HostFunctions(
+                                scraperId = scraperId,
+                                scraperSettingsJson = settingsJson,
+                                callArgsJson = callArgsJson,
+                                onResult = { deferred.complete(it) },
+                            ),
+                        )
+                        addModule(FetchBridge())
+                        addModule(UrlBridge())
+                        addModule(CryptoBridge())
+                        addModule(WasmBridge())
+                        addModule(domBridge)
+                    }
+
+                    try {
+                        jsRuntime.use {
+                            hostRegistry.registerAll(this)
+                            evaluateCached({ JsRuntime.polyfillBytecode(this) }, JsBindings.staticPolyfillCode)
+                            evaluate<Any?>(wrapPluginModule(code))
+                            evaluateCached({ JsRuntime.catalogCallBytecode(this) }, JsBindings.staticCatalogCallCode)
+                            deferred.await()
+                        }
+                        parseMediaItemResults(deferred.await())
+                    } finally {
+                        domBridge.clear()
+                    }
+                }
+            }
+        }
+    }
+
+    suspend fun executeSearch(
+        code: String,
+        scraperId: String,
+        query: String,
+        mediaType: String? = null,
+        extra: String? = null,
+        page: Int = 1,
+    ): List<PluginMediaItem> {
+        val scraperSettingsJson = PluginStorage.loadScraperSettings(scraperId) ?: "{}"
+        val scraperSettingsMap = runCatching {
+            json.decodeFromString<Map<String, JsonElement>>(scraperSettingsJson)
+        }.getOrElse { emptyMap() }
+
+        return scraperSemaphore.withPermit {
+            withContext(pluginDispatcher) {
+                withTimeout(PLUGIN_TIMEOUT_MS) {
+                    val jsRuntime = JsRuntime()
+                    val deferred = CompletableDeferred<String>()
+                    val settingsJson = JsonObject(scraperSettingsMap).toString()
+                    val callArgsJson = JsonObject(
+                        mapOf(
+                            "query" to JsonPrimitive(query),
+                            "mediaType" to JsonPrimitive(mediaType ?: ""),
+                            "extra" to JsonPrimitive(extra ?: ""),
+                            "page" to JsonPrimitive(page),
+                        ),
+                    ).toString()
+
+                    val domBridge = DomBridge()
+                    val hostRegistry = HostApiRegistry().apply {
+                        addModule(
+                            HostFunctions(
+                                scraperId = scraperId,
+                                scraperSettingsJson = settingsJson,
+                                callArgsJson = callArgsJson,
+                                onResult = { deferred.complete(it) },
+                            ),
+                        )
+                        addModule(FetchBridge())
+                        addModule(UrlBridge())
+                        addModule(CryptoBridge())
+                        addModule(WasmBridge())
+                        addModule(domBridge)
+                    }
+
+                    try {
+                        jsRuntime.use {
+                            hostRegistry.registerAll(this)
+                            evaluateCached({ JsRuntime.polyfillBytecode(this) }, JsBindings.staticPolyfillCode)
+                            evaluate<Any?>(wrapPluginModule(code))
+                            evaluateCached({ JsRuntime.searchCallBytecode(this) }, JsBindings.staticSearchCallCode)
+                            deferred.await()
+                        }
+                        parseMediaItemResults(deferred.await())
+                    } finally {
+                        domBridge.clear()
+                    }
+                }
+            }
         }
     }
 
@@ -128,6 +255,7 @@ internal object PluginRuntime {
         season: Int?,
         episode: Int?,
         scraperId: String,
+        extra: String = "",
         scraperSettings: Map<String, JsonElement>,
     ): List<PluginRuntimeResult> {
         val jsRuntime = JsRuntime()
@@ -139,6 +267,7 @@ internal object PluginRuntime {
                 "mediaType" to JsonPrimitive(mediaType),
                 "season" to (season?.let(::JsonPrimitive) ?: JsonNull),
                 "episode" to (episode?.let(::JsonPrimitive) ?: JsonNull),
+                "extra" to JsonPrimitive(extra),
             ),
         ).toString()
 
@@ -246,6 +375,52 @@ internal object PluginRuntime {
                     subtitles = subtitles,
                 )
             }.filter { it.url.isNotBlank() }
+        }.getOrElse { emptyList() }
+    }
+
+    private fun parseMediaItemResults(rawJson: String): List<PluginMediaItem> {
+        return runCatching {
+            val array = json.parseToJsonElement(rawJson) as? JsonArray ?: return emptyList()
+            array.mapNotNull { element ->
+                val item = element as? JsonObject ?: return@mapNotNull null
+                val id = item.stringOrNull("id") ?: return@mapNotNull null
+                val title = item.stringOrNull("title") ?: item.stringOrNull("name")
+                val name = item.stringOrNull("name")
+                val type = item.stringOrNull("type") ?: "movie"
+                val poster = item.stringOrNull("poster")
+                val backdrop = item.stringOrNull("backdrop")
+                val background = item.stringOrNull("background")
+                val logo = item.stringOrNull("logo")
+                val description = item.stringOrNull("description")
+                val releaseInfo = item.stringOrNull("releaseInfo")
+                val year = item.stringOrNull("year")
+                val imdbRating = item["imdbRating"]?.jsonPrimitive?.contentOrNull?.toFloatOrNull()
+                val genres = (item["genres"] as? JsonArray)?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList()
+                val streamUrl = item.stringOrNull("streamUrl")
+                val extra = item.stringOrNull("extra")
+                val headers = (item["headers"] as? JsonObject)?.mapNotNull { (k, v) ->
+                    v.jsonPrimitive.contentOrNull?.let { k to it }
+                }?.toMap()
+
+                PluginMediaItem(
+                    id = id,
+                    title = title,
+                    name = name,
+                    type = type,
+                    poster = poster,
+                    backdrop = backdrop,
+                    background = background,
+                    logo = logo,
+                    description = description,
+                    releaseInfo = releaseInfo,
+                    year = year,
+                    imdbRating = imdbRating,
+                    genres = genres,
+                    streamUrl = streamUrl,
+                    extra = extra,
+                    headers = headers,
+                )
+            }
         }.getOrElse { emptyList() }
     }
 

@@ -37,10 +37,49 @@ internal object JsBindings {
                     var args = JSON.parse(__get_call_args());
                     var season = args.season == null ? undefined : args.season;
                     var episode = args.episode == null ? undefined : args.episode;
-                    var result = await getStreams(args.tmdbId, args.mediaType, season, episode);
+                    var extra = args.extra || "";
+                    var result = await getStreams(args.tmdbId, args.mediaType, season, episode, extra);
                     __capture_result(JSON.stringify(result || []));
                 } catch (e) {
                     console.error("getStreams error:", e && e.message ? e.message : e, e && e.stack ? e.stack : "");
+                    __capture_result(JSON.stringify([]));
+                }
+            })();
+        """.trimIndent()
+
+    val staticCatalogCallCode: String = """
+            (async function() {
+                try {
+                    var fn = (typeof module !== 'undefined' && module.exports && (module.exports.getCatalog || module.exports.getCatalogues)) || globalThis.getCatalog || globalThis.getCatalogues;
+                    if (!fn) {
+                        console.error("getCatalog function not found on module.exports or globalThis");
+                        __capture_result(JSON.stringify([]));
+                        return;
+                    }
+                    var args = JSON.parse(__get_call_args());
+                    var result = await fn(args.catalogId, args.mediaType, args.extra || "", args.page || 1);
+                    __capture_result(JSON.stringify(result || []));
+                } catch (e) {
+                    console.error("getCatalog error:", e && e.message ? e.message : e, e && e.stack ? e.stack : "");
+                    __capture_result(JSON.stringify([]));
+                }
+            })();
+        """.trimIndent()
+
+    val staticSearchCallCode: String = """
+            (async function() {
+                try {
+                    var fn = (typeof module !== 'undefined' && module.exports && module.exports.search) || globalThis.search;
+                    if (!fn) {
+                        console.error("search function not found on module.exports or globalThis");
+                        __capture_result(JSON.stringify([]));
+                        return;
+                    }
+                    var args = JSON.parse(__get_call_args());
+                    var result = await fn(args.query, args.mediaType || "", args.extra || "", args.page || 1);
+                    __capture_result(JSON.stringify(result || []));
+                } catch (e) {
+                    console.error("search error:", e && e.message ? e.message : e, e && e.stack ? e.stack : "");
                     __capture_result(JSON.stringify([]));
                 }
             })();

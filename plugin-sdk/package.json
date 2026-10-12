@@ -1,0 +1,15 @@
+{
+  "name": "nuviomobile-plugin-sdk",
+  "version": "1.0.0",
+  "description": "Developer SDK and testing tools for Nuvio plugins",
+  "main": "tools/simulator.js",
+  "scripts": {
+    "validate": "node tools/validator.js template/manifest.json",
+    "test": "node tools/simulator.js template/manifest.json",
+    "serve": "node tools/dev-server.js template/manifest.json",
+    "test:examples": "node tools/simulator.js examples/live-iptv-plugin/manifest.json && node tools/simulator.js examples/catalog-vod-plugin/manifest.json"
+  },
+  "keywords": ["nuviomobile", "plugin", "sdk", "android"],
+  "author": "IAMSDR",
+  "license": "MIT"
+}

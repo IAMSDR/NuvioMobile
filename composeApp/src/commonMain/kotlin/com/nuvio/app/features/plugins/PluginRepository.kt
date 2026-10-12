@@ -39,5 +39,22 @@ expect object PluginRepository {
         mediaType: String,
         season: Int?,
         episode: Int?,
+        extra: String = "",
     ): Result<List<PluginRuntimeResult>>
+
+    suspend fun getCatalog(
+        scraperId: String,
+        catalogId: String,
+        mediaType: String,
+        extra: String? = null,
+        page: Int = 1,
+    ): Result<List<PluginMediaItem>>
+
+    suspend fun search(
+        scraperId: String,
+        query: String,
+        mediaType: String? = null,
+        extra: String? = null,
+        page: Int = 1,
+    ): Result<List<PluginMediaItem>>
 }

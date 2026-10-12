@@ -21,6 +21,14 @@ data class PluginManifest(
 )
 
 @Serializable
+data class PluginCatalogManifest(
+    val id: String,
+    val name: String,
+    val type: String = "movie",
+    val extra: String? = null,
+)
+
+@Serializable
 data class PluginManifestScraper(
     val id: String,
     val name: String,
@@ -38,7 +46,14 @@ data class PluginManifestScraper(
     @SerialName("supportedFormats") val supportedFormats: List<String>? = null,
     @SerialName("supportsExternalPlayer") val supportsExternalPlayer: Boolean? = null,
     val limited: Boolean? = null,
-)
+    val hasHome: Boolean? = null,
+    val supportsSearch: Boolean? = null,
+    val catalogs: List<PluginCatalogManifest>? = null,
+    val catalogues: List<PluginCatalogManifest>? = null,
+) {
+    val effectiveCatalogs: List<PluginCatalogManifest>
+        get() = catalogs ?: catalogues ?: emptyList()
+}
 
 data class PluginRepositoryItem(
     val manifestUrl: String,
@@ -66,11 +81,39 @@ data class PluginScraper(
     val contentLanguage: List<String> = emptyList(),
     val formats: List<String>? = null,
     val code: String,
+    val hasHome: Boolean = false,
+    val supportsSearch: Boolean = false,
+    val catalogs: List<PluginCatalogManifest> = emptyList(),
 ) {
     fun supportsType(type: String): Boolean {
         val normalizedType = normalizePluginType(type)
         return supportedTypes.map { normalizePluginType(it) }.contains(normalizedType)
     }
+}
+
+@Serializable
+data class PluginMediaItem(
+    val id: String,
+    val title: String? = null,
+    val name: String? = null,
+    val type: String = "movie",
+    val poster: String? = null,
+    val backdrop: String? = null,
+    val background: String? = null,
+    val logo: String? = null,
+    val description: String? = null,
+    val releaseInfo: String? = null,
+    val year: String? = null,
+    val imdbRating: Float? = null,
+    val genres: List<String> = emptyList(),
+    val streamUrl: String? = null,
+    val extra: String? = null,
+    val headers: Map<String, String>? = null,
+) {
+    val displayTitle: String
+        get() = title?.takeIf { it.isNotBlank() }
+            ?: name?.takeIf { it.isNotBlank() }
+            ?: id
 }
 
 data class PluginRuntimeResult(
@@ -143,6 +186,9 @@ internal data class StoredPluginScraper(
     val contentLanguage: List<String> = emptyList(),
     val formats: List<String>? = null,
     val code: String? = null,
+    val hasHome: Boolean = false,
+    val supportsSearch: Boolean = false,
+    val catalogs: List<PluginCatalogManifest> = emptyList(),
 )
 
 internal data class RestoredPluginScraper(
@@ -183,6 +229,9 @@ internal fun PluginScraper.toStoredPluginScraper(): StoredPluginScraper =
         contentLanguage = contentLanguage,
         formats = formats,
         code = null,
+        hasHome = hasHome,
+        supportsSearch = supportsSearch,
+        catalogs = catalogs,
     )
 
 internal fun StoredPluginScraper.restorePluginScraper(
@@ -206,6 +255,9 @@ internal fun StoredPluginScraper.restorePluginScraper(
             contentLanguage = contentLanguage,
             formats = formats,
             code = resolvedCode,
+            hasHome = hasHome,
+            supportsSearch = supportsSearch,
+            catalogs = catalogs,
         ),
         requiresMigration = code != null,
     )
@@ -214,5 +266,6 @@ internal fun StoredPluginScraper.restorePluginScraper(
 internal fun normalizePluginType(value: String): String =
     when (value.lowercase()) {
         "series", "show", "other" -> "tv"
+        "channel", "iptv", "stream" -> "live"
         else -> value.lowercase()
     }

@@ -1,0 +1,31 @@
+{
+  "name": "VOD Catalog Example Repo",
+  "version": "1.0.0",
+  "scrapers": [
+    {
+      "id": "catalog-vod-plugin",
+      "name": "Curated VOD Movies & Shows",
+      "description": "Example plugin providing curated on-demand movies and TV shows.",
+      "version": "1.0.0",
+      "filename": "vod-plugin.js",
+      "logo": "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=200",
+      "supportedTypes": ["movie", "tv"],
+      "hasHome": true,
+      "supportsSearch": true,
+      "catalogs": [
+        {
+          "id": "top-movies",
+          "name": "Popular Classics",
+          "type": "movie",
+          "extra": "classics"
+        },
+        {
+          "id": "popular-series",
+          "name": "Popular TV Series",
+          "type": "tv",
+          "extra": "series"
+        }
+      ]
+    }
+  ]
+}

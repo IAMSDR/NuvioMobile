@@ -1,0 +1,184 @@
+name: Release Fork APKs
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version tag (e.g. 0.1.0 or v0.1.0)'
+        required: true
+        default: '0.1.0'
+        type: string
+      prerelease:
+        description: 'Mark as prerelease'
+        required: false
+        default: false
+        type: boolean
+      draft:
+        description: 'Create as draft release'
+        required: false
+        default: false
+        type: boolean
+  push:
+    tags:
+      - 'v*'
+      - '[0-9]+.[0-9]+.[0-9]+*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fork-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build & Publish Release APKs
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine version tag
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            RAW_VER="${{ inputs.version }}"
+          else
+            RAW_VER="${{ github.ref_name }}"
+          fi
+          if [[ "${RAW_VER}" == v* ]]; then
+            TAG="${RAW_VER}"
+            CLEAN_VER="${RAW_VER#v}"
+          else
+            TAG="v${RAW_VER}"
+            CLEAN_VER="${RAW_VER}"
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "clean_version=${CLEAN_VER}" >> "$GITHUB_OUTPUT"
+          echo "Selected release tag: ${TAG} (version: ${CLEAN_VER})"
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Configure Keystore and Properties
+        run: |
+          KEYSTORE_DIR="${RUNNER_TEMP}/keystore"
+          mkdir -p "${KEYSTORE_DIR}"
+          KEYSTORE_FILE="${KEYSTORE_DIR}/nuviomobile-release.jks"
+
+          if [[ -n "${{ secrets.NUVIO_RELEASE_KEYSTORE_BASE64 }}" ]]; then
+            echo "Using release keystore from repository secrets..."
+            echo "${{ secrets.NUVIO_RELEASE_KEYSTORE_BASE64 }}" | base64 -d > "${KEYSTORE_FILE}"
+            STORE_PASS="${{ secrets.NUVIO_RELEASE_STORE_PASSWORD || '815787' }}"
+            KEY_ALIAS="${{ secrets.NUVIO_RELEASE_KEY_ALIAS || 'nuviomobile' }}"
+            KEY_PASS="${{ secrets.NUVIO_RELEASE_KEY_PASSWORD || '815787' }}"
+          else
+            echo "Generating self-contained release keystore..."
+            keytool -genkeypair -v -keystore "${KEYSTORE_FILE}" \
+              -alias nuviomobile \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass nuviopass -keypass nuviopass \
+              -dname "CN=NuvioMobile, OU=Fork, O=IAMSDR, L=Unknown, S=Unknown, C=US"
+            STORE_PASS="nuviopass"
+            KEY_ALIAS="nuviomobile"
+            KEY_PASS="nuviopass"
+          fi
+
+          echo "NUVIO_RELEASE_STORE_FILE=${KEYSTORE_FILE}" >> "$GITHUB_ENV"
+          echo "NUVIO_RELEASE_KEY_ALIAS=${KEY_ALIAS}" >> "$GITHUB_ENV"
+          echo "NUVIO_RELEASE_STORE_PASSWORD=${STORE_PASS}" >> "$GITHUB_ENV"
+          echo "NUVIO_RELEASE_KEY_PASSWORD=${KEY_PASS}" >> "$GITHUB_ENV"
+
+          {
+            echo "NUVIO_RELEASE_STORE_FILE=${KEYSTORE_FILE}"
+            echo "NUVIO_RELEASE_STORE_PASSWORD=${STORE_PASS}"
+            echo "NUVIO_RELEASE_KEY_ALIAS=${KEY_ALIAS}"
+            echo "NUVIO_RELEASE_KEY_PASSWORD=${KEY_PASS}"
+            if [[ -n "${{ secrets.NUVIO_SUPABASE_URL }}" ]]; then
+              echo "NUVIO_SUPABASE_URL=${{ secrets.NUVIO_SUPABASE_URL }}"
+              echo "NUVIO_SUPABASE_ANON_KEY=${{ secrets.NUVIO_SUPABASE_ANON_KEY }}"
+            fi
+            if [[ -n "${{ secrets.TRAKT_CLIENT_ID }}" ]]; then
+              echo "TRAKT_CLIENT_ID=${{ secrets.TRAKT_CLIENT_ID }}"
+              echo "TRAKT_CLIENT_SECRET=${{ secrets.TRAKT_CLIENT_SECRET }}"
+            fi
+          } >> local.properties
+
+      - name: Build Full Release APKs
+        run: |
+          ./gradlew :androidApp:assembleFullRelease -Pnuvio.android.distribution=full -Pnuvio.app.versionName="${{ steps.version.outputs.clean_version }}" --stacktrace
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuviomobile-${{ steps.version.outputs.tag }}-apks
+          path: androidApp/build/outputs/apk/full/release/*.apk
+          if-no-files-found: error
+
+      - name: Create or Update GitHub Release
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          CLEAN_VER: ${{ steps.version.outputs.clean_version }}
+          IS_PRERELEASE: ${{ inputs.prerelease || false }}
+          IS_DRAFT: ${{ inputs.draft || false }}
+        run: |
+          RELEASE_DIR="androidApp/build/outputs/apk/full/release"
+          mapfile -t release_apks < <(find "${RELEASE_DIR}" -maxdepth 1 -type f -name '*.apk' | sort)
+          if (( ${#release_apks[@]} == 0 )); then
+            echo "Error: No release APKs were produced in ${RELEASE_DIR}." >&2
+            exit 1
+          fi
+
+          echo "Found APKs to upload:"
+          printf ' - %s\n' "${release_apks[@]}"
+
+          cat <<EOF > release-notes.md
+          # NuvioMobile Fork ${TAG}
+
+          ### Highlights & Features:
+          - Extended plugin architecture with custom catalogues and in-plugin search.
+          - Direct live stream playback for \`live\` / \`channel\` media items (bypasses details screen).
+          - Dedicated plugin browser screen with search bar and catalogue carousels.
+          - Scoped stream resolution: movie and series playback initiated from a plugin only queries that plugin.
+          - Automatic home row for plugins with \`hasHome: true\` below Hero section.
+          - In-app update support pointing to **${{ github.repository }}**.
+
+          ### Download Options:
+          - **Universal** (\`androidApp-full-universal-release.apk\`): Works on all Android devices.
+          - **ARM64** (\`androidApp-full-arm64-v8a-release.apk\`): Recommended for modern 64-bit Android devices.
+          - **ARMv7** (\`androidApp-full-armeabi-v7a-release.apk\`): For older 32-bit Android devices.
+          - **x86_64 / x86**: For emulators and x86 hardware.
+          EOF
+
+          release_opts=(
+            "${TAG}"
+            --title "NuvioMobile ${TAG}"
+            --notes-file release-notes.md
+          )
+
+          if [[ "${IS_PRERELEASE}" == "true" ]]; then
+            release_opts+=(--prerelease)
+          fi
+
+          if [[ "${IS_DRAFT}" == "true" ]]; then
+            release_opts+=(--draft)
+          fi
+
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            echo "Release ${TAG} exists, uploading/overwriting assets..."
+            gh release upload "${TAG}" "${release_apks[@]}" --clobber
+          else
+            echo "Creating new release ${TAG}..."
+            gh release create "${release_opts[@]}" "${release_apks[@]}"
+          fi

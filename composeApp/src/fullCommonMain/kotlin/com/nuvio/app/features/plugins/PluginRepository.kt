@@ -354,14 +354,62 @@ actual object PluginRepository {
         mediaType: String,
         season: Int?,
         episode: Int?,
+        extra: String,
     ): Result<List<PluginRuntimeResult>> = executeScraperInternal(
         scraper = scraper,
         tmdbId = tmdbId,
         mediaType = mediaType,
         season = season,
         episode = episode,
+        extra = extra,
         respectSearchPause = true,
     )
+
+    actual suspend fun getCatalog(
+        scraperId: String,
+        catalogId: String,
+        mediaType: String,
+        extra: String?,
+        page: Int,
+    ): Result<List<PluginMediaItem>> {
+        initialize()
+        val scraper = _uiState.value.scrapers.find { it.id == scraperId }
+            ?: return Result.failure(IllegalArgumentException(getString(Res.string.plugins_error_provider_not_found)))
+
+        return runCatching {
+            PluginRuntime.executeCatalog(
+                code = scraper.code,
+                scraperId = scraper.id,
+                catalogId = catalogId,
+                mediaType = normalizePluginType(mediaType),
+                extra = extra,
+                page = page,
+            )
+        }
+    }
+
+    actual suspend fun search(
+        scraperId: String,
+        query: String,
+        mediaType: String?,
+        extra: String?,
+        page: Int,
+    ): Result<List<PluginMediaItem>> {
+        initialize()
+        val scraper = _uiState.value.scrapers.find { it.id == scraperId }
+            ?: return Result.failure(IllegalArgumentException(getString(Res.string.plugins_error_provider_not_found)))
+
+        return runCatching {
+            PluginRuntime.executeSearch(
+                code = scraper.code,
+                scraperId = scraper.id,
+                query = query,
+                mediaType = mediaType?.let { normalizePluginType(it) },
+                extra = extra,
+                page = page,
+            )
+        }
+    }
 
     private suspend fun executeScraperInternal(
         scraper: PluginScraper,
@@ -369,6 +417,7 @@ actual object PluginRepository {
         mediaType: String,
         season: Int?,
         episode: Int?,
+        extra: String = "",
         respectSearchPause: Boolean,
     ): Result<List<PluginRuntimeResult>> {
         val resolvedTmdbId = resolvePluginTmdbId(
@@ -384,6 +433,7 @@ actual object PluginRepository {
                 season = season,
                 episode = episode,
                 scraperId = scraper.id,
+                extra = extra,
                 respectSearchPause = respectSearchPause,
             )
         }
@@ -454,6 +504,9 @@ actual object PluginRepository {
                             contentLanguage = info.contentLanguage ?: emptyList(),
                             formats = info.formats ?: info.supportedFormats,
                             code = code,
+                            hasHome = info.hasHome ?: false,
+                            supportsSearch = info.supportsSearch ?: false,
+                            catalogs = info.effectiveCatalogs,
                         )
                     }.getOrNull()
                 }

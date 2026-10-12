@@ -111,6 +111,7 @@ internal data class AppTabActions(
     val onFolderClick: ((collectionId: String, folderId: String) -> Unit)? = null,
     val onRequestedSettingsPageConsumed: () -> Unit = {},
     val onInitialHomeContentRendered: () -> Unit = {},
+    val onPluginClick: ((String) -> Unit)? = null,
 )
 
 @Composable
@@ -142,6 +143,7 @@ internal fun AppTabHost(
                         continueWatchingDisintegrationRequest = state.continueWatchingDisintegrationRequest,
                         onFolderClick = actions.onFolderClick,
                         onFirstCatalogRendered = actions.onInitialHomeContentRendered,
+                        onPluginClick = actions.onPluginClick,
                     )
                 }
             }

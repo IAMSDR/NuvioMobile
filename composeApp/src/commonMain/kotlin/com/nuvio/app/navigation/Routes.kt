@@ -38,6 +38,13 @@ data class DetailRoute(
     val type: String,
     val id: String,
     override val title: String? = null,
+    val scopedPluginId: String? = null,
+) : AppRoute
+
+@Serializable
+data class PluginBrowserRoute(
+    val scraperId: String,
+    override val title: String = "",
 ) : AppRoute
 
 @Serializable

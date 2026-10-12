@@ -1,0 +1,32 @@
+{
+  "name": "My Custom Plugin Repo",
+  "version": "1.0.0",
+  "description": "Custom NuvioTV Plugin Repository",
+  "scrapers": [
+    {
+      "id": "starter-plugin",
+      "name": "Starter Plugin",
+      "description": "Template demonstrating live channels, on-demand catalogs, and search.",
+      "version": "1.0.0",
+      "filename": "sample-plugin.js",
+      "logo": "https://raw.githubusercontent.com/IAMSDR/NuvioTV/dev/art/logo.png",
+      "supportedTypes": ["movie", "tv", "live"],
+      "hasHome": true,
+      "supportsSearch": true,
+      "catalogs": [
+        {
+          "id": "live-channels",
+          "name": "Featured Live TV",
+          "type": "live",
+          "extra": "featured"
+        },
+        {
+          "id": "curated-movies",
+          "name": "Trending Movies",
+          "type": "movie",
+          "extra": "trending"
+        }
+      ]
+    }
+  ]
+}

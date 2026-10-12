@@ -29,6 +29,12 @@ internal class JsRuntime {
         @Volatile
         private var cachedSettingsCallBytecode: ByteArray? = null
 
+        @Volatile
+        private var cachedCatalogCallBytecode: ByteArray? = null
+
+        @Volatile
+        private var cachedSearchCallBytecode: ByteArray? = null
+
         fun polyfillBytecode(runtime: QuickJs): ByteArray =
             cachedPolyfillBytecode ?: runtime.compile(JsBindings.staticPolyfillCode, "polyfill.js", false).also {
                 cachedPolyfillBytecode = it
@@ -43,6 +49,18 @@ internal class JsRuntime {
             cachedSettingsCallBytecode
                 ?: runtime.compile(JsBindings.staticSettingsCallCode, "settings-call.js", false).also {
                     cachedSettingsCallBytecode = it
+                }
+
+        fun catalogCallBytecode(runtime: QuickJs): ByteArray =
+            cachedCatalogCallBytecode
+                ?: runtime.compile(JsBindings.staticCatalogCallCode, "catalog-call.js", false).also {
+                    cachedCatalogCallBytecode = it
+                }
+
+        fun searchCallBytecode(runtime: QuickJs): ByteArray =
+            cachedSearchCallBytecode
+                ?: runtime.compile(JsBindings.staticSearchCallCode, "search-call.js", false).also {
+                    cachedSearchCallBytecode = it
                 }
     }
 }

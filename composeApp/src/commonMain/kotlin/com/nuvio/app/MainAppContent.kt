@@ -144,6 +144,7 @@ import com.nuvio.app.features.settings.HomescreenSettingsScreen
 import com.nuvio.app.features.settings.LicensesAttributionsSettingsScreen
 import com.nuvio.app.features.settings.MetaScreenSettingsScreen
 import com.nuvio.app.features.settings.PluginsSettingsScreen
+import com.nuvio.app.features.plugins.browser.PluginBrowserScreen
 import com.nuvio.app.features.settings.SupportersContributorsSettingsScreen
 import com.nuvio.app.features.settings.ThemeSettingsRepository
 import com.nuvio.app.features.streams.BingeGroupCacheRepository
@@ -929,6 +930,8 @@ internal fun MainAppContent(
             resumeProgressFraction: Float?,
             manualSelection: Boolean,
             startFromBeginning: Boolean,
+            scopedPluginId: String? = null,
+            extra: String = "",
         ) {
             val targetResumePositionMs = if (startFromBeginning) 0L else (resumePositionMs ?: 0L)
             val targetResumeProgressFraction = if (startFromBeginning) null else resumeProgressFraction
@@ -1003,6 +1006,8 @@ internal fun MainAppContent(
                     resumeProgressFraction = targetResumeProgressFraction,
                     manualSelection = manualSelection,
                     startFromBeginning = startFromBeginning,
+                    scopedPluginId = scopedPluginId,
+                    extra = extra,
                 ),
             )
             navController.navigate(
@@ -1298,6 +1303,7 @@ internal fun MainAppContent(
                         actions = { isTabletLayout ->
                             AppTabActions(
                                 onCatalogClick = onCatalogClick,
+                                onPluginClick = { scraperId -> navController.navigate(PluginBrowserRoute(scraperId)) },
                                 onPosterClick = navController::openPreview,
                                 onPosterLongClick = { meta ->
                                     openPosterActions(PosterActionTarget(preview = meta))
@@ -1441,11 +1447,63 @@ internal fun MainAppContent(
                     )
                 }
                 entry<DetailRoute> { route ->
+                    val effectiveOnPlay: ContentPlayAction = if (route.scopedPluginId != null) {
+                        { type, videoId, parentMetaId, parentMetaType, title, logo, poster, background, seasonNumber, episodeNumber, episodeTitle, episodeThumbnail, pauseDescription, resumePositionMs ->
+                            launchPlaybackWithDownloadPreference(
+                                type = type,
+                                videoId = videoId,
+                                parentMetaId = parentMetaId,
+                                parentMetaType = parentMetaType,
+                                title = title,
+                                logo = logo,
+                                poster = poster,
+                                background = background,
+                                seasonNumber = seasonNumber,
+                                episodeNumber = episodeNumber,
+                                episodeTitle = episodeTitle,
+                                episodeThumbnail = episodeThumbnail,
+                                pauseDescription = pauseDescription,
+                                resumePositionMs = resumePositionMs,
+                                resumeProgressFraction = null,
+                                manualSelection = false,
+                                startFromBeginning = false,
+                                scopedPluginId = route.scopedPluginId,
+                            )
+                        }
+                    } else {
+                        onPlay
+                    }
+                    val effectiveOnPlayManually: ContentPlayAction = if (route.scopedPluginId != null) {
+                        { type, videoId, parentMetaId, parentMetaType, title, logo, poster, background, seasonNumber, episodeNumber, episodeTitle, episodeThumbnail, pauseDescription, resumePositionMs ->
+                            launchPlaybackWithDownloadPreference(
+                                type = type,
+                                videoId = videoId,
+                                parentMetaId = parentMetaId,
+                                parentMetaType = parentMetaType,
+                                title = title,
+                                logo = logo,
+                                poster = poster,
+                                background = background,
+                                seasonNumber = seasonNumber,
+                                episodeNumber = episodeNumber,
+                                episodeTitle = episodeTitle,
+                                episodeThumbnail = episodeThumbnail,
+                                pauseDescription = pauseDescription,
+                                resumePositionMs = resumePositionMs,
+                                resumeProgressFraction = null,
+                                manualSelection = true,
+                                startFromBeginning = false,
+                                scopedPluginId = route.scopedPluginId,
+                            )
+                        }
+                    } else {
+                        onPlayManually
+                    }
                     DetailsDestination(
                         route = route,
                         navController = navController,
-                        onPlay = onPlay,
-                        onPlayManually = onPlayManually,
+                        onPlay = effectiveOnPlay,
+                        onPlayManually = effectiveOnPlayManually,
                         sharedTransitionScope = this@SharedTransitionLayout,
                         animatedVisibilityScope = LocalNavAnimatedContentScope.current,
                     )
@@ -1508,6 +1566,46 @@ internal fun MainAppContent(
                         route = route,
                         navController = navController,
                         onPosterLongClick = openPosterActions,
+                    )
+                }
+                entry<PluginBrowserRoute> { route ->
+                    PluginBrowserScreen(
+                        scraperId = route.scraperId,
+                        onBackPress = rememberGuardedPopBackStack(navController, route),
+                        onNavigateToDetail = { itemId, itemType ->
+                            navController.navigate(
+                                DetailRoute(
+                                    type = itemType,
+                                    id = itemId,
+                                    scopedPluginId = route.scraperId,
+                                ),
+                            )
+                        },
+                        onPlayLiveStream = { streamUrl, title, headers, logo, poster ->
+                            val playerLaunch = PlayerLaunch(
+                                profileId = activePlaybackProfileId,
+                                title = title,
+                                sourceUrl = streamUrl,
+                                sourceHeaders = headers ?: emptyMap(),
+                                sourceResponseHeaders = emptyMap(),
+                                externalSubtitles = emptyList(),
+                                logo = logo,
+                                poster = poster,
+                                background = null,
+                                seasonNumber = null,
+                                episodeNumber = null,
+                                episodeTitle = null,
+                                episodeThumbnail = null,
+                                streamTitle = title,
+                                providerName = "Plugin",
+                                parentMetaId = "plugin:${route.scraperId}",
+                                parentMetaType = "live",
+                                contentType = "live",
+                                videoId = streamUrl,
+                            )
+                            val launchId = PlayerLaunchStore.put(playerLaunch)
+                            navController.navigate(PlayerRoute(launchId = launchId, title = title))
+                        },
                     )
                 }
                 entry<HomescreenSettingsRoute> { route ->

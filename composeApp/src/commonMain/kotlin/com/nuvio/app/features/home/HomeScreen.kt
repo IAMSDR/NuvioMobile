@@ -34,6 +34,10 @@ import com.nuvio.app.core.ui.nuvioSafeBottomPadding
 import com.nuvio.app.core.ui.rememberHeroStretchState
 import com.nuvio.app.core.ui.rememberPosterCardStyleUiState
 import com.nuvio.app.core.ui.withDuplicateSafeLazyKeys
+import com.nuvio.app.core.build.AppFeaturePolicy
+import com.nuvio.app.features.plugins.PluginRepository
+import com.nuvio.app.features.plugins.PluginsUiState
+import com.nuvio.app.features.plugins.components.PluginsRowSection
 import com.nuvio.app.features.addons.AddonRepository
 import com.nuvio.app.features.addons.enabledAddons
 import com.nuvio.app.features.servers.ServerRepository
@@ -125,6 +129,7 @@ fun HomeScreen(
     continueWatchingDisintegrationRequest: DisintegrationRequest<String>? = null,
     onFolderClick: ((collectionId: String, folderId: String) -> Unit)? = null,
     onFirstCatalogRendered: (() -> Unit)? = null,
+    onPluginClick: ((String) -> Unit)? = null,
 ) {
     LaunchedEffect(Unit) {
         AddonRepository.initialize()
@@ -135,6 +140,20 @@ fun HomeScreen(
         val authState = AuthRepository.state.value
         if (authState !is AuthState.Authenticated || authState.isAnonymous) {
             WatchProgressSourceCoordinator.ensureStarted()
+        }
+    }
+
+    val pluginsUiState by if (AppFeaturePolicy.pluginsEnabled) {
+        PluginRepository.initialize()
+        PluginRepository.uiState.collectAsStateWithLifecycle()
+    } else {
+        remember { kotlinx.coroutines.flow.MutableStateFlow(PluginsUiState(pluginsEnabled = false)) }.collectAsStateWithLifecycle()
+    }
+    val homePlugins = remember(pluginsUiState.scrapers, pluginsUiState.pluginsEnabled) {
+        if (pluginsUiState.pluginsEnabled) {
+            pluginsUiState.scrapers.filter { it.enabled && it.hasHome }
+        } else {
+            emptyList()
         }
     }
 
@@ -1018,6 +1037,17 @@ fun HomeScreen(
                             )
                         }
                     }
+                }
+            }
+
+            if (homePlugins.isNotEmpty()) {
+                item(key = "plugins_row", contentType = "plugins_row") {
+                    PluginsRowSection(
+                        plugins = homePlugins,
+                        sectionPadding = homeSectionPadding,
+                        onPluginClick = { scraperId -> onPluginClick?.invoke(scraperId) },
+                        modifier = Modifier.padding(bottom = 12.dp),
+                    )
                 }
             }
 

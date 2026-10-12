@@ -377,6 +377,7 @@ internal fun StreamDestination(
         season = launch.seasonNumber,
         episode = launch.episodeNumber,
         manualSelection = launch.manualSelection,
+        scopedPluginId = launch.scopedPluginId,
     )
     val showLoadingScreen = autoPlayNavigationStarted || resolvingDebridStream || resolvingYouTubeStream || preparingServerStream || streamsUiState.shouldShowAutoPlayLoading(
         expectedRequestToken = expectedStreamsRequestToken,
@@ -436,6 +437,8 @@ internal fun StreamDestination(
                             season = launch.seasonNumber,
                             episode = launch.episodeNumber,
                             manualSelection = launch.manualSelection,
+                            scopedPluginId = launch.scopedPluginId,
+                            extra = launch.extra,
                         )
                     }
                     return@LaunchedEffect
@@ -610,6 +613,8 @@ internal fun StreamDestination(
                                 season = launch.seasonNumber,
                                 episode = launch.episodeNumber,
                                 manualSelection = launch.manualSelection,
+                                scopedPluginId = launch.scopedPluginId,
+                                extra = launch.extra,
                             )
                         }
                     }
@@ -751,6 +756,8 @@ internal fun StreamDestination(
             resumeProgressFraction = launch.resumeProgressFraction,
             manualSelection = launch.manualSelection,
             startFromBeginning = launch.startFromBeginning,
+            scopedPluginId = launch.scopedPluginId,
+            extra = launch.extra,
             onStreamSelected = { stream, resolvedResumePositionMs, resolvedResumeProgressFraction ->
                 openSelectedStream(
                     stream = stream,

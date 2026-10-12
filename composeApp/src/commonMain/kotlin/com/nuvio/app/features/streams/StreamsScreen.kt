@@ -119,6 +119,8 @@ fun StreamsScreen(
         resumeProgressFraction: Float?,
     ) -> Unit = { _, _, _, _ -> },
     onBack: () -> Unit,
+    scopedPluginId: String? = null,
+    extra: String = "",
     modifier: Modifier = Modifier,
 ) {
     val useNativeNavigation = LocalUseNativeNavigation.current
@@ -177,7 +179,7 @@ fun StreamsScreen(
     val effectiveResumePositionMs = resumeState.positionMs
     val effectiveResumeProgressFraction = resumeState.progressFraction
 
-    LaunchedEffect(type, videoId, seasonNumber, episodeNumber, manualSelection) {
+    LaunchedEffect(type, videoId, seasonNumber, episodeNumber, manualSelection, scopedPluginId, extra) {
         StreamsRepository.load(
             type = type,
             videoId = videoId,
@@ -185,6 +187,8 @@ fun StreamsScreen(
             season = seasonNumber,
             episode = episodeNumber,
             manualSelection = manualSelection,
+            scopedPluginId = scopedPluginId,
+            extra = extra,
         )
     }
 

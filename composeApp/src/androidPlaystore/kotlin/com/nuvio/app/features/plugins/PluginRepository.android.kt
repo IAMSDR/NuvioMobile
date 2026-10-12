@@ -48,6 +48,25 @@ actual object PluginRepository {
         mediaType: String,
         season: Int?,
         episode: Int?,
+        extra: String,
     ): Result<List<PluginRuntimeResult>> =
+        Result.failure(UnsupportedOperationException(getString(Res.string.plugins_error_unavailable_build)))
+
+    actual suspend fun getCatalog(
+        scraperId: String,
+        catalogId: String,
+        mediaType: String,
+        extra: String?,
+        page: Int,
+    ): Result<List<PluginMediaItem>> =
+        Result.failure(UnsupportedOperationException(getString(Res.string.plugins_error_unavailable_build)))
+
+    actual suspend fun search(
+        scraperId: String,
+        query: String,
+        mediaType: String?,
+        extra: String?,
+        page: Int,
+    ): Result<List<PluginMediaItem>> =
         Result.failure(UnsupportedOperationException(getString(Res.string.plugins_error_unavailable_build)))
 }
