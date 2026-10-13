@@ -13,6 +13,7 @@
       "supportedTypes": ["movie", "tv", "live"],
       "hasHome": true,
       "supportsSearch": true,
+      "hasSettings": true,
       "catalogs": [
         {
           "id": "live-channels",

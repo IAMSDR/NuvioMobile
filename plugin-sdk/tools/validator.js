@@ -83,6 +83,10 @@ manifest.scrapers.forEach((scraper, index) => {
     reportPass(`hasHome is enabled (will show row on home screen)`);
   }
 
+  if (scraper.hasSettings === true) {
+    reportPass(`hasSettings is enabled (user configuration dialog enabled)`);
+  }
+
   const catalogs = scraper.catalogs || scraper.catalogues || [];
   if (catalogs.length > 0) {
     reportPass(`Declared ${catalogs.length} catalog(s): ${catalogs.map(c => c.name || c.id).join(', ')}`);
@@ -114,6 +118,38 @@ manifest.scrapers.forEach((scraper, index) => {
         reportPass(`Exports 'getStreams(tmdbId, mediaType, season, episode, extra)'`);
       }
 
+      if (scraper.hasSettings === true) {
+        if (typeof pluginModule.onSettings !== 'function') {
+          reportError(`Scraper specifies hasSettings=true but does not export 'onSettings()' function`);
+        } else {
+          reportPass(`Exports 'onSettings()'`);
+          try {
+            const settingsResult = pluginModule.onSettings();
+            const layout = (settingsResult && typeof settingsResult.then === 'function')
+              ? Promise.resolve(settingsResult)
+              : settingsResult;
+
+            if (Array.isArray(layout)) {
+              validateSettingsLayout(layout, scraper.id);
+            } else if (layout && typeof layout.then === 'function') {
+              layout.then(resolvedLayout => {
+                if (Array.isArray(resolvedLayout)) {
+                  validateSettingsLayout(resolvedLayout, scraper.id);
+                } else {
+                  reportError(`'onSettings()' must resolve to an array of setting field objects`);
+                }
+              }).catch(e => {
+                reportError(`'onSettings()' threw an error: ${e.message}`);
+              });
+            } else {
+              reportError(`'onSettings()' must return an array or Promise<Array> of setting field objects`);
+            }
+          } catch (settingsErr) {
+            reportError(`Error evaluating 'onSettings()': ${settingsErr.message}`);
+          }
+        }
+      }
+
       if (catalogs.length > 0) {
         if (typeof pluginModule.getCatalog !== 'function') {
           reportError(`Scraper declares catalogs but does not export 'getCatalog(catalogId, mediaType, extra, page)'`);
@@ -134,6 +170,40 @@ manifest.scrapers.forEach((scraper, index) => {
     }
   }
 });
+
+function validateSettingsLayout(layout, scraperId) {
+  const validTypes = ['header', 'info', 'text', 'select', 'toggle'];
+  layout.forEach((field, fIdx) => {
+    if (!field || typeof field !== 'object') {
+      reportError(`Setting field at index ${fIdx} is not an object`);
+      return;
+    }
+    const type = field.type;
+    if (!validTypes.includes(type)) {
+      reportError(`Setting field '${field.key || fIdx}' has invalid type '${type}'. Must be one of: ${validTypes.join(', ')}`);
+      return;
+    }
+    if (type === 'header' || type === 'info') {
+      if (!field.label) reportWarning(`Setting field '${type}' at index ${fIdx} has no 'label'`);
+    } else {
+      if (!field.key) reportError(`Setting field '${type}' at index ${fIdx} missing required 'key'`);
+      if (!field.label) reportWarning(`Setting field '${field.key || fIdx}' has no 'label'`);
+    }
+
+    if (type === 'select') {
+      if (!Array.isArray(field.options) || field.options.length === 0) {
+        reportError(`Select setting '${field.key}' must have a non-empty 'options' array`);
+      } else {
+        field.options.forEach((opt, oIdx) => {
+          if (!opt || typeof opt.value === 'undefined') {
+            reportError(`Option at index ${oIdx} in select '${field.key}' missing 'value'`);
+          }
+        });
+      }
+    }
+  });
+  reportPass(`Settings layout contains ${layout.length} valid field(s)`);
+}
 
 console.log(`\n\x1b[36m=== Validation Summary ===\x1b[0m`);
 if (errors === 0) {

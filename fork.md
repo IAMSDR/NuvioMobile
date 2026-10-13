@@ -6,6 +6,7 @@ This fork brings extended plugin capabilities to NuvioMobile while maintaining s
 2. **Android Focus**: Configured for Android builds and testing.
 3. **Extended Plugin Capabilities**:
    - `catalogs` and `supportsSearch` support in `manifest.json`.
+   - `hasSettings`: allows plugins to define custom user settings dialogs (`onSettings()`) with inputs, dropdowns, and switches, injected as `SCRAPER_SETTINGS` at runtime.
    - `extra` argument in `getStreams(tmdbId, mediaType, season, episode, extra)` for custom routing.
    - `hasHome` manifest flag: displays a "Plugins" row on the home screen immediately below the Hero section (omitted when 0 plugins have `hasHome: true`).
    - Dedicated `PluginBrowserScreen` for browsing catalogs and searching within a plugin.

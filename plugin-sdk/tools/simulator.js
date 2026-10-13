@@ -38,6 +38,16 @@ async function runSimulation() {
       continue;
     }
 
+    // Initialize Nuvio runtime mock globals
+    globalThis.SCRAPER_ID = scraper.id;
+    globalThis.SCRAPER_SETTINGS = {
+      api_key: 'demo_user_key_999',
+      stream_quality: '1080p',
+      include_adult: false,
+      enable_backup_cdn: true
+    };
+    globalThis.TMDB_API_KEY = 'mock_tmdb_api_key';
+
     let plugin;
     try {
       delete require.cache[require.resolve(jsPath)];
@@ -46,6 +56,40 @@ async function runSimulation() {
       console.error(`  \x1b[31m✖ Error importing plugin: ${e.message}\x1b[0m`);
       failedTests++;
       continue;
+    }
+
+    // 0. Test Settings
+    if (typeof plugin.onSettings === 'function' || scraper.hasSettings === true) {
+      process.stdout.write(`  Testing onSettings()... `);
+      if (typeof plugin.onSettings !== 'function') {
+        console.log(`\x1b[31mFAILED (hasSettings=true but onSettings not exported)\x1b[0m`);
+        failedTests++;
+      } else {
+        try {
+          const startTime = Date.now();
+          const layout = await plugin.onSettings();
+          const duration = Date.now() - startTime;
+
+          if (!Array.isArray(layout)) {
+            console.log(`\x1b[31mFAILED (onSettings returned non-array)\x1b[0m`);
+            failedTests++;
+          } else {
+            console.log(`\x1b[32mOK (${layout.length} field(s), ${duration}ms)\x1b[0m`);
+            passedTests++;
+            layout.forEach(field => {
+              if (field.type === 'header' || field.type === 'info') {
+                console.log(`    [UI ${field.type.toUpperCase()}] "${field.label || ''}"`);
+              } else {
+                console.log(`    [CONFIG] ${field.key} (${field.type}) -> "${field.label}" [default: ${JSON.stringify(field.defaultValue)}]`);
+              }
+            });
+            console.log(`    (Runtime test executing with mock SCRAPER_SETTINGS: ${JSON.stringify(globalThis.SCRAPER_SETTINGS)})`);
+          }
+        } catch (settingsErr) {
+          console.log(`\x1b[31mERROR: ${settingsErr.message}\x1b[0m`);
+          failedTests++;
+        }
+      }
     }
 
     const catalogs = scraper.catalogs || scraper.catalogues || [];

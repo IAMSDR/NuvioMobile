@@ -24,6 +24,7 @@ Plugins can declare home row presence, search capability, and catalogues:
       "supportedTypes": ["movie", "tv", "live"],
       "hasHome": true,
       "supportsSearch": true,
+      "hasSettings": true,
       "catalogs": [
         {
           "id": "live-channels",
@@ -46,11 +47,33 @@ Plugins can declare home row presence, search capability, and catalogues:
 #### Manifest Fields
 - `hasHome` (optional boolean, default `false`): When `true`, a card for this plugin appears in the "Plugins" row on the mobile home screen (below Hero section).
 - `supportsSearch` (optional boolean, default `false`): When `true`, search is enabled on the plugin's dedicated browser page.
+- `hasSettings` (optional boolean, default `false`): When `true`, enables a settings gear icon in **Settings -> Plugins** and executes `onSettings()` to construct a native user settings dialog.
 - `catalogs` (optional array): Catalogues to display on the plugin's dedicated page. Each item contains:
   - `id`: Unique identifier for the catalogue.
   - `name`: Display title of the catalogue row.
   - `type`: Content type (`movie`, `tv` / `series`, or `live`).
   - `extra` (optional string): Custom argument passed to `getCatalog`.
+
+---
+
+### Plugin User Settings System
+
+When `hasSettings: true`, plugins export an `onSettings()` function that returns an array of UI fields.
+
+#### Supported Setting Controls:
+1. `header`: `{ type: "header", label: "Section Title" }`
+2. `info`: `{ type: "info", label: "Descriptive help note" }`
+3. `text`: `{ type: "text", key: "api_key", label: "API Key", description: "...", placeholder: "...", isPassword: true }`
+4. `select`: `{ type: "select", key: "quality", label: "Resolution", defaultValue: "1080p", options: [{ label: "1080p", value: "1080p" }] }`
+5. `toggle`: `{ type: "toggle", key: "enable_feature", label: "Enable Feature", defaultValue: true }`
+
+#### Reading Settings at Runtime:
+Whenever `getStreams`, `getCatalog`, or `search` execute, the user's saved preferences are injected into `globalThis.SCRAPER_SETTINGS`:
+```javascript
+const settings = globalThis.SCRAPER_SETTINGS || {};
+const apiKey = settings.api_key || "";
+const quality = settings.quality || "1080p";
+```
 
 ---
 
